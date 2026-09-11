@@ -17,29 +17,156 @@
 </head>
 <body>
     <div id="app" v-cloak>
-        <header>
-            <h1>D-TECH Agreements</h1>
-            <p class="subtitle">Private by design. Your answers never leave your browser.</p>
-        </header>
+        <nav class="navbar">
+            <div class="nav-brand" @click="currentStep = 'home'">D-TECH Agreements</div>
+            <div class="nav-links">
+                <a href="#" @click.prevent="currentStep = 'home'">Templates</a>
+                <a href="#" @click.prevent="startCustomAgreement">Create Custom</a>
+                <a href="#how-it-works">How It Works</a>
+                <a href="#about">About</a>
+            </div>
+            <div class="mobile-menu-icon">☰</div>
+        </nav>
 
         <main>
-            <!-- Step 1: Template Selection -->
-            <section v-if="currentStep === 'select_template'" class="template-selection">
-                <h2>Choose a Template</h2>
-                <div class="template-grid">
-                    <div v-for="(template, index) in templates" :key="index" class="template-card" @click="selectTemplate(index)">
-                        <h3>{{ template.title }}</h3>
-                        <p>{{ template.description }}</p>
+            <!-- Step 1: Home / Template Selection -->
+            <section v-if="currentStep === 'home'" class="home-section">
+
+                <div class="hero-section">
+                    <h2>MAKE YOUR RULES OFFICIAL.</h2>
+                    <p class="hero-subtitle">Private by design. Your answers stay in your browser.</p>
+                    <p>Create personalised agreements, applications, constitutions and forms — then turn them into a polished PDF.</p>
+                    <button @click="startCustomAgreement" class="btn-primary hero-btn">Create an Agreement</button>
+                    <div class="hero-badge">No account required</div>
+                </div>
+
+                <div v-if="recentDocuments.length > 0" class="recent-docs">
+                    <h3>Your Recent Documents</h3>
+                    <p class="muted">Saved on this device. Nothing is uploaded.</p>
+                    <div class="recent-list">
+                        <div v-for="(doc, idx) in recentDocuments" :key="'recent-'+idx" class="recent-item">
+                            <span class="recent-title">{{ doc.title }}</span>
+                            <span class="recent-date">Created {{ doc.date }}</span>
+                        </div>
                     </div>
+                </div>
+
+                <div class="template-selection">
+                    <h2>CHOOSE A TEMPLATE</h2>
+
+                    <div class="search-filter-bar">
+                        <label>What are you creating?</label>
+                        <input type="text" v-model="searchQuery" placeholder="🔍 Search templates..." class="search-input">
+                        <div class="category-filters">
+                            <button v-for="cat in categories" :key="cat"
+                                    @click="selectedCategory = cat"
+                                    :class="['filter-btn', { active: selectedCategory === cat }]">
+                                {{ cat }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div v-for="(group, category) in groupedTemplates" :key="category" class="template-category-group">
+                        <h3 v-if="category !== 'Search Results' && selectedCategory === 'All'" class="category-title">{{ category }}</h3>
+                        <div class="template-grid">
+                            <div v-for="(template, index) in group" :key="index" class="template-card" @click="viewTemplatePreview(template)">
+                                <h3>{{ template.title }}</h3>
+                                <p>{{ template.description }}</p>
+                                <span v-if="template.isLegal" class="badge-legal">Serious / Legal</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="custom-card-section" @click="startCustomAgreement">
+                    <div class="custom-card-content">
+                        <h3>✨ CREATE YOUR OWN</h3>
+                        <p>Don't see what you need? Build your own agreement from scratch.</p>
+                    </div>
+                    <button class="btn-primary">Start From Scratch</button>
+                </div>
+
+                <div class="custom-card-section constitution-card" @click="startConstitution">
+                    <div class="custom-card-content">
+                        <h3>⚖️ BUILD YOUR OWN CONSTITUTION</h3>
+                        <p>Create articles, rules, duties, penalties and amendments.</p>
+                    </div>
+                    <button class="btn-primary">Create Constitution</button>
+                </div>
+
+                <div id="how-it-works" class="how-it-works-section">
+                    <h2>HOW IT WORKS</h2>
+                    <div class="steps-container">
+                        <div class="step-item">
+                            <div class="step-num">1</div>
+                            <h4>Choose</h4>
+                            <p>Choose a template or start from scratch.</p>
+                        </div>
+                        <div class="step-arrow">→</div>
+                        <div class="step-item">
+                            <div class="step-num">2</div>
+                            <h4>Customize</h4>
+                            <p>Answer the recommended questions and add your own.</p>
+                        </div>
+                        <div class="step-arrow">→</div>
+                        <div class="step-item">
+                            <div class="step-num">3</div>
+                            <h4>Generate</h4>
+                            <p>Preview your document and generate your PDF.</p>
+                        </div>
+                    </div>
+
+                    <div class="customization-feature">
+                        <h3>Every template is customizable</h3>
+                        <p>Our templates give you a starting structure. Add your own questions, sections, rules and clauses to make the document yours.</p>
+                        <div class="example-box">
+                            <p><strong>D-TECH provides:</strong> "How do you handle disagreements?"</p>
+                            <p><strong>You can add:</strong> "How many dates should we have per month?"</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="about" class="privacy-section">
+                    <h2>🔒 PRIVATE BY DESIGN</h2>
+                    <p>D-TECH Agreements is designed to generate documents directly in your browser. Your form responses aren't uploaded to a D-TECH database.</p>
+                    <ul class="privacy-list">
+                        <li>No account required.</li>
+                        <li>No cloud storage required.</li>
+                        <li>No document uploaded to our servers.</li>
+                        <li>Generate and save your PDF locally.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- Template Preview Step -->
+            <section v-if="currentStep === 'preview_template'" class="template-preview-section">
+                <button @click="currentStep = 'home'" class="btn-text">← Back to Templates</button>
+                <div class="preview-card">
+                    <h2>{{ previewedTemplate.title }}</h2>
+                    <p class="preview-desc">{{ previewedTemplate.description }}</p>
+                    <p class="preview-stats">{{ previewedTemplate.stats }} · Customizable {{ previewedTemplate.difficulty }}</p>
+
+                    <div v-if="previewedTemplate.sections && previewedTemplate.sections.length > 0" class="preview-includes">
+                        <h4>Includes sections like:</h4>
+                        <ul>
+                            <li v-for="(sec, idx) in previewedTemplate.sections.slice(0, 5)" :key="idx">✓ {{ sec.title }}</li>
+                            <li v-if="previewedTemplate.sections.length > 5">✓ ...and more</li>
+                        </ul>
+                    </div>
+
+                    <button @click="startTemplate(previewedTemplate)" class="btn-primary mt-4">Use This Template</button>
                 </div>
             </section>
 
             <!-- Step 2: Form Filling & Customization -->
             <section v-if="currentStep === 'fill_form'" class="form-builder">
                 <div class="actions-header">
-                    <button @click="currentStep = 'select_template'" class="btn-secondary">Back to Templates</button>
+                    <button @click="currentStep = 'home'" class="btn-secondary">Back to Templates</button>
                     <h2>{{ currentTemplate.title }}</h2>
-                    <button @click="previewDocument" class="btn-primary">Preview & Generate PDF</button>
+                    <div class="header-btns">
+                        <button @click="saveDraft" class="btn-secondary">Save Draft</button>
+                        <button @click="previewDocument" class="btn-primary">Preview & Generate PDF</button>
+                    </div>
                 </div>
 
                 <div v-for="(section, sIndex) in currentTemplate.sections" :key="'section-'+sIndex" class="form-section">
@@ -97,7 +224,7 @@
                 <button @click="openCustomSectionModal" class="btn-secondary" style="margin-top: 20px;">＋ Add Section</button>
 
                 <!-- Clauses Section -->
-                <div class="form-section clauses-section">
+                <div class="form-section clauses-section mt-4">
                     <h3>Additional Clauses</h3>
                     <div v-for="(clause, cIndex) in customClauses" :key="'clause-'+cIndex" class="clause-item">
                         <strong>{{ clause.type }}:</strong> {{ clause.text }}
@@ -107,9 +234,10 @@
             </section>
 
             <!-- Step 3: Preview and Generate PDF -->
-            <section v-if="currentStep === 'preview'" class="preview-section">
+            <section v-if="currentStep === 'preview_doc'" class="preview-section">
                 <div class="actions-header">
                     <button @click="currentStep = 'fill_form'" class="btn-secondary">Back to Form</button>
+
                     <div class="style-selector">
                         <label>Style: </label>
                         <select v-model="selectedStyle">
@@ -121,7 +249,8 @@
                             <option value="romantic">Romantic</option>
                         </select>
                     </div>
-                    <button @click="generatePDF" class="btn-primary">Download PDF</button>
+
+                    <button @click="generatePDF" class="btn-primary">Generate PDF</button>
                 </div>
 
                 <div class="document-preview-container">
@@ -129,7 +258,6 @@
                         <h1 class="doc-title">{{ currentTemplate.title }}</h1>
 
                         <div v-for="(section, sIndex) in currentTemplate.sections" :key="'doc-section-'+sIndex" class="doc-section">
-                            <!-- Only show section if it has answered questions (or you can show all) -->
                             <h2 class="doc-section-title">{{ section.title }}</h2>
 
                             <div v-for="(question, qIndex) in section.questions" :key="'doc-question-'+sIndex+'-'+qIndex" class="doc-question">
@@ -159,6 +287,27 @@
                 </div>
             </section>
         </main>
+
+        <footer>
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <h3>D-TECH Agreements</h3>
+                    <p>Create. Customize. Generate.</p>
+                </div>
+                <div class="footer-links">
+                    <a href="#" @click.prevent="currentStep = 'home'">Templates</a>
+                    <a href="#how-it-works">How It Works</a>
+                    <a href="#">Privacy</a>
+                    <a href="#">Terms</a>
+                    <a href="#">Legal Disclaimer</a>
+                    <a href="#">Contact</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>Disclaimer: For serious/legal templates, D-TECH is not providing legal advice. Users should obtain professional legal advice where appropriate.</p>
+                <p>© 2026 THE D-TECH ECOSYSTEM (Pty) Ltd</p>
+            </div>
+        </footer>
 
         <!-- Modals -->
 
