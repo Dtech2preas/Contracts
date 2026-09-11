@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D-TECH Agreements</title>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- html2pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <header>
+            <h1>D-TECH Agreements</h1>
+            <p class="subtitle">Private by design. Your answers never leave your browser.</p>
+        </header>
+
+        <main>
+            <!-- Step 1: Template Selection -->
+            <section v-if="currentStep === 'select_template'" class="template-selection">
+                <h2>Choose a Template</h2>
+                <div class="template-grid">
+                    <div v-for="(template, index) in templates" :key="index" class="template-card" @click="selectTemplate(index)">
+                        <h3>{{ template.title }}</h3>
+                        <p>{{ template.description }}</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 2: Form Filling & Customization -->
+            <section v-if="currentStep === 'fill_form'" class="form-builder">
+                <div class="actions-header">
+                    <button @click="currentStep = 'select_template'" class="btn-secondary">Back to Templates</button>
+                    <h2>{{ currentTemplate.title }}</h2>
+                    <button @click="previewDocument" class="btn-primary">Preview & Generate PDF</button>
+                </div>
+
+                <div v-for="(section, sIndex) in currentTemplate.sections" :key="'section-'+sIndex" class="form-section">
+                    <h3>{{ section.title }}</h3>
+
+                    <div v-for="(question, qIndex) in section.questions" :key="'question-'+sIndex+'-'+qIndex" class="form-group">
+                        <label>
+                            {{ question.label }}
+                            <span v-if="question.required" class="required">*</span>
+                        </label>
+
+                        <!-- Text Input -->
+                        <input v-if="question.type === 'text'" type="text" v-model="answers[question.id]">
+
+                        <!-- Number Input -->
+                        <input v-if="question.type === 'number'" type="number" v-model="answers[question.id]">
+
+                        <!-- Long Answer / Textarea -->
+                        <textarea v-if="question.type === 'textarea'" v-model="answers[question.id]"></textarea>
+
+                        <!-- Radio / Multiple Choice -->
+                        <div v-if="question.type === 'radio'" class="radio-group">
+                            <label v-for="(option, oIndex) in question.options" :key="oIndex">
+                                <input type="radio" :value="option" v-model="answers[question.id]">
+                                {{ option }}
+                            </label>
+                        </div>
+
+                        <!-- Checkboxes -->
+                        <div v-if="question.type === 'checkbox'" class="checkbox-group">
+                            <label v-for="(option, oIndex) in question.options" :key="oIndex">
+                                <input type="checkbox" :value="option" v-model="answers[question.id]">
+                                {{ option }}
+                            </label>
+                        </div>
+
+                        <!-- Yes/No -->
+                        <div v-if="question.type === 'yes_no'" class="radio-group">
+                            <label><input type="radio" value="Yes" v-model="answers[question.id]"> Yes</label>
+                            <label><input type="radio" value="No" v-model="answers[question.id]"> No</label>
+                        </div>
+
+                        <!-- Rating -->
+                        <div v-if="question.type === 'rating'" class="rating-group">
+                            <input type="number" min="1" max="10" v-model="answers[question.id]">
+                            <span>/ 10</span>
+                        </div>
+                    </div>
+
+                    <!-- Add custom question button for this section -->
+                    <button @click="openCustomQuestionModal(sIndex)" class="btn-text">＋ Add Question</button>
+                </div>
+
+                <!-- Add custom section button -->
+                <button @click="openCustomSectionModal" class="btn-secondary" style="margin-top: 20px;">＋ Add Section</button>
+
+                <!-- Clauses Section -->
+                <div class="form-section clauses-section">
+                    <h3>Additional Clauses</h3>
+                    <div v-for="(clause, cIndex) in customClauses" :key="'clause-'+cIndex" class="clause-item">
+                        <strong>{{ clause.type }}:</strong> {{ clause.text }}
+                    </div>
+                    <button @click="openCustomClauseModal" class="btn-text">＋ Add custom clause</button>
+                </div>
+            </section>
+
+            <!-- Step 3: Preview and Generate PDF -->
+            <section v-if="currentStep === 'preview'" class="preview-section">
+                <div class="actions-header">
+                    <button @click="currentStep = 'fill_form'" class="btn-secondary">Back to Form</button>
+                    <div class="style-selector">
+                        <label>Style: </label>
+                        <select v-model="selectedStyle">
+                            <option value="classic">Classic</option>
+                            <option value="modern">Modern</option>
+                            <option value="formal">Formal</option>
+                            <option value="minimal">Minimal</option>
+                            <option value="funny">Funny</option>
+                            <option value="romantic">Romantic</option>
+                        </select>
+                    </div>
+                    <button @click="generatePDF" class="btn-primary">Download PDF</button>
+                </div>
+
+                <div class="document-preview-container">
+                    <div id="document-content" :class="['document-content', 'style-' + selectedStyle]">
+                        <h1 class="doc-title">{{ currentTemplate.title }}</h1>
+
+                        <div v-for="(section, sIndex) in currentTemplate.sections" :key="'doc-section-'+sIndex" class="doc-section">
+                            <!-- Only show section if it has answered questions (or you can show all) -->
+                            <h2 class="doc-section-title">{{ section.title }}</h2>
+
+                            <div v-for="(question, qIndex) in section.questions" :key="'doc-question-'+sIndex+'-'+qIndex" class="doc-question">
+                                <template v-if="hasAnswer(question)">
+                                    <div class="doc-q-label">{{ question.label }}</div>
+                                    <div class="doc-q-answer">{{ formatAnswer(answers[question.id]) }}</div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <div v-if="customClauses.length > 0" class="doc-section">
+                            <h2 class="doc-section-title">Additional Clauses</h2>
+                            <div v-for="(clause, cIndex) in customClauses" :key="'doc-clause-'+cIndex" class="doc-clause">
+                                <strong>{{ clause.type }}:</strong> {{ clause.text }}
+                            </div>
+                        </div>
+
+                        <div class="doc-signatures">
+                            <div class="signature-line">
+                                <p>Signature</p>
+                            </div>
+                            <div class="signature-line">
+                                <p>Date</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Modals -->
+
+        <!-- Custom Question Modal -->
+        <div v-if="showQuestionModal" class="modal-overlay">
+            <div class="modal">
+                <h3>Add Custom Question</h3>
+                <div class="form-group">
+                    <label>What would you like to ask?</label>
+                    <input type="text" v-model="newQuestion.label">
+                </div>
+                <div class="form-group">
+                    <label>Answer type</label>
+                    <select v-model="newQuestion.type">
+                        <option value="text">Short answer</option>
+                        <option value="textarea">Long answer</option>
+                        <option value="radio">Multiple choice</option>
+                        <option value="checkbox">Checkboxes</option>
+                        <option value="yes_no">Yes / No</option>
+                        <option value="rating">Rating</option>
+                        <option value="number">Number</option>
+                    </select>
+                </div>
+
+                <div v-if="newQuestion.type === 'radio' || newQuestion.type === 'checkbox'" class="form-group">
+                    <label>Options (comma separated)</label>
+                    <input type="text" v-model="newQuestion.optionsString">
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label>
+                        <input type="checkbox" v-model="newQuestion.required">
+                        Required?
+                    </label>
+                </div>
+
+                <div class="modal-actions">
+                    <button @click="showQuestionModal = false" class="btn-secondary">Cancel</button>
+                    <button @click="addCustomQuestion" class="btn-primary">Add Question</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Section Modal -->
+        <div v-if="showSectionModal" class="modal-overlay">
+            <div class="modal">
+                <h3>Add Custom Section</h3>
+                <div class="form-group">
+                    <label>Section Title</label>
+                    <input type="text" v-model="newSection.title">
+                </div>
+                <div class="modal-actions">
+                    <button @click="showSectionModal = false" class="btn-secondary">Cancel</button>
+                    <button @click="addCustomSection" class="btn-primary">Add Section</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Custom Clause Modal -->
+        <div v-if="showClauseModal" class="modal-overlay">
+            <div class="modal">
+                <h3>Add Custom Clause</h3>
+                <div class="form-group">
+                    <label>Clause Text</label>
+                    <textarea v-model="newClause.text"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Add as:</label>
+                    <select v-model="newClause.type">
+                        <option value="Rule">Rule</option>
+                        <option value="Question">Question</option>
+                        <option value="Clause">Clause</option>
+                        <option value="Note">Note</option>
+                        <option value="Requirement">Requirement</option>
+                        <option value="Penalty">Penalty</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button @click="showClauseModal = false" class="btn-secondary">Cancel</button>
+                    <button @click="addCustomClause" class="btn-primary">Add Clause</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="js/templates.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
